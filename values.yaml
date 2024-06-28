@@ -1,0 +1,4 @@
+ibis:
+  # Only 'dev' is currently supported
+  environment: dev
+  hostname: floto.local

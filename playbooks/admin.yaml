@@ -1,0 +1,13 @@
+---
+- name: Create admin user
+  hosts: all
+  vars_prompt:
+    - name: username
+      prompt: Email to make admin?
+      private: false
+
+  tasks:
+    - name: Update database
+      community.docker.docker_container_exec:
+        container: floto_web
+        command: bash -c "./manage.py shell -c \"from floto.auth.models import KeycloakUser; u = KeycloakUser.objects.get(username='{{ username }}'); u.is_staff = True; u.is_superuser = True; u.save()\""

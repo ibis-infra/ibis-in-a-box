@@ -1,0 +1,128 @@
+---
+- name: Git checkout
+  ansible.builtin.git:
+    repo: 'https://github.com/UChicago-FLOTO/keycloak-deploy.git'
+    dest: ./keycloak
+    version: "main"
+    update: false
+
+- name: Template env file
+  ansible.builtin.template:
+    src: keycloak_env.j2
+    dest: ./keycloak/.env
+    owner: cc
+    group: cc
+    mode: '0644'
+
+- name: Deploy dev keycloak
+  community.docker.docker_compose_v2:
+    project_src: ./keycloak
+  become: true
+
+- name: Wait for HTTP
+  ansible.builtin.uri:
+    url: 'http://localhost/'
+    validate_certs: false
+    status_code:
+      - 200
+  until: uri_output.status == 200
+  retries: 24
+  delay: 10
+  register: uri_output
+
+- name: Create ibis realm
+  community.general.keycloak_realm:
+    auth_client_id: admin-cli
+    auth_keycloak_url: http://localhost
+    auth_realm: master
+    auth_username: admin
+    auth_password: admin
+    id: ibis
+    realm: ibis
+    registration_allowed: true
+    enabled: true
+    state: present
+  delegate_to: localhost
+
+- name: Create dashboard-admin client
+  community.general.keycloak_client:
+    auth_keycloak_url: http://localhost
+    auth_realm: master
+    auth_username: admin
+    auth_password: admin
+    state: present
+    realm: ibis
+    client_id: dashboard-{{ ibis.environment }}-admin
+    secret: dashboard-{{ ibis.environment }}-admin-secret
+    name: Dashboard API admin ({{ ibis.environment }})
+    description: Admin service account client for managing realms via Dashboard
+    enabled: true
+    client_authenticator_type: client-secret
+    standard_flow_enabled: false
+    implicit_flow_enabled: false
+    direct_access_grants_enabled: false
+    service_accounts_enabled: true
+    authorization_services_enabled: false
+    public_client: false
+    frontchannel_logout: false
+    protocol: openid-connect
+  delegate_to: localhost
+
+
+- name: Add roles to admin service account
+  community.general.keycloak_user_rolemapping:
+    auth_keycloak_url: http://localhost
+    auth_realm: master
+    auth_username: admin
+    auth_password: admin
+    state: present
+    client_id: realm-management
+    realm: ibis
+    service_account_user_client_id: dashboard-{{ ibis.environment }}-admin
+    roles:
+      - name: view-users
+      - name: realm-admin
+      - name: view-realm
+      - name: query-users
+      - name: view-identity-providers
+      - name: manage-clients
+      - name: manage-authorization
+      - name: view-authorization
+      - name: create-client
+      - name: manage-events
+      - name: manage-realm
+      - name: view-clients
+      - name: view-events
+      - name: manage-users
+      - name: impersonation
+      - name: query-groups
+      - name: query-clients
+      - name: query-realms
+      - name: manage-identity-providers
+  delegate_to: localhost
+
+- name: Create dashboard client
+  community.general.keycloak_client:
+    auth_keycloak_url: http://localhost
+    auth_realm: master
+    auth_username: admin
+    auth_password: admin
+    state: present
+    realm: ibis
+    client_id: dashboard-{{ ibis.environment }}
+    secret: dashboard-{{ ibis.environment }}-secret
+    name: Dashboard API ({{ ibis.environment }})
+    description: Service account client for managing realms via Dashboard
+    enabled: true
+    client_authenticator_type: client-secret
+    standard_flow_enabled: true
+    implicit_flow_enabled: false
+    direct_access_grants_enabled: false
+    service_accounts_enabled: true
+    authorization_services_enabled: false
+    public_client: false
+    frontchannel_logout: false
+    protocol: openid-connect
+    redirect_uris:
+      - "http://ibis.local:8080/*"
+  delegate_to: localhost
