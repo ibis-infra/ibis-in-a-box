@@ -1,4 +1,11 @@
 ibis:
   # Only 'dev' is currently supported
   environment: dev
-  hostname: floto.local
+  hostname: ibis.local
+
+keycloak:
+  hostname: ibis.local
+  admin_password: admin
+
+dashboard:
+  django_secret_key: django-insecure-123
