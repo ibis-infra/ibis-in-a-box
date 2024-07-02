@@ -1,0 +1,15 @@
+- name: Set up local node
+  hosts: all
+  roles:
+    - role: geerlingguy.docker
+      become: true
+      docker_users:
+        - cc
+  tasks:
+    - name: Configure /etc/hosts
+      ansible.builtin.blockinfile:
+        state: present
+        dest: /etc/hosts
+        content: |
+          {{ ansible_default_ipv4.address }} {{ ibis.hostname }}
+      become: true

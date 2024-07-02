@@ -1,0 +1,5 @@
+---
+- name: Set up dashboard
+  hosts: dashboard
+  roles:
+    - dashboard

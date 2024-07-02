@@ -1,0 +1,56 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
+VIRTUALENV="$(realpath "${VIRTUALENV:-"$DIR"/venv}")"
+INVENTORY="$(realpath "${INVENTORY:-"$DIR"/inventory.ini}")"
+VALUES="$(realpath "${VALUES:-"$DIR"/values.yaml}")"
+
+if [ -f "${VIRTUALENV}/bin/activate" ]; then
+    # shellcheck source=/dev/null
+    source "${VIRTUALENV}/bin/activate"
+fi
+
+playbook(){
+    ansible-playbook "$@" -i "$INVENTORY"  --extra-vars @"$VALUES"
+}
+
+install() {
+    python3 -m venv "$VIRTUALENV"
+    # shellcheck source=/dev/null
+    source "${VIRTUALENV}/bin/activate"
+    local pip_requirements="$DIR/requirements.txt"
+    pip install -r "${pip_requirements}"
+
+    local galaxy_requirements="$DIR/requirements.yml"
+    ansible-galaxy role install --force -r "$galaxy_requirements"
+    ansible-galaxy collection install --force -r "$galaxy_requirements"
+
+    playbook playbooks/bootstrap.yaml
+}
+
+usage(){
+    cat << EOF
+Usage: ./$(basename "$0") <command> [options]
+Commands:
+- install           Install dependencies
+- keycloak          Deploy keycloak
+- dashboard         Deploy dashboard
+- admin             Become dashboard/API admin
+EOF
+}
+
+if [ "$#" -gt 0 ]; then
+    case $1 in
+        install) "$@"; exit;;
+        keycloak) playbook playbooks/keycloak.yaml; exit;;
+        dashboard) playbook playbooks/dashboard.yaml; exit;;
+        admin) playbook playbooks/admin.yaml; exit;;
+        *) usage;
+    esac
+else
+    usage
+fi

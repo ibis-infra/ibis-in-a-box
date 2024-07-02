@@ -1,0 +1,42 @@
+---
+- name: Git checkout
+  ansible.builtin.git:
+    repo: 'https://github.com/UChicago-FLOTO/dashboard.git'
+    dest: ./dashboard
+    version: "main"
+    update: false
+
+- name: Template env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: ./dashboard/.env
+    owner: cc
+    group: cc
+    mode: '0644'
+
+- name: Build docker image
+  community.general.make:
+    chdir: ./dashboard
+    target: build-dev
+  become: true
+
+- name: Deploy dashboard
+  community.docker.docker_compose_v2:
+    project_src: ./dashboard
+  become: true
+
+- name: Wait for HTTP
+  ansible.builtin.uri:
+    url: 'http://localhost:8080/'
+    validate_certs: false
+    status_code:
+      - 200
+  until: uri_output.status == 200
+  retries: 24
+  delay: 10
+  register: uri_output
+
+- name: Migrate DB
+  community.docker.docker_container_exec:
+    container: floto_web
+    command: bash -c "./manage.py migrate"
